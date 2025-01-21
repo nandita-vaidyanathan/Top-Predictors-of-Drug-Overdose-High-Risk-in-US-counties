@@ -1,0 +1,579 @@
+---
+title: "FINAL SPE PROJECT"
+author: "Nandita"
+date: "2024-11-30"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+library(readr)
+#install.packages("dplyr")
+library(dplyr)
+#install.packages("openxlsx")
+library(openxlsx)
+library("stringr")
+#install.packages("psych")
+library(psych)
+#install.packages("readxl")
+library(readxl)
+#install.packages("ggplot2")
+library(ggplot2)
+library(tidyr)
+#install.packages("nlme")
+library(nlme)
+#install.packages("skimr")
+library(skimr)
+#install.packages("naniar")
+library(naniar)
+#install.packages("VIM")
+library(VIM)
+#install.packages("MissMech")
+library(MissMech)
+#install.packages("mice")
+library(mice)
+#install.packages("lme4")
+library(lme4)
+library(MASS)
+#install.packages("car")
+library(car)
+#install.packages("glmnet")
+library(glmnet)
+install.packages("randomForest")
+library(randomForest)
+#install.packages("mgcv")
+library(mgcv)
+library(caret)
+library(pROC)
+#install.packages("kableExtra")
+library(kableExtra)
+library(stargazer)
+```
+
+```{r}
+#loading data
+x2016_mhp <- read_excel("2016 County Health Rankings Data - v3.xls", sheet = "Ranked Measure Data")
+x2016_socio <- read_excel("2016 County Health Rankings Data - v3.xls",sheet = "Additional Measure Data")
+x2017_mhp <- read_excel("2017CountyHealthRankingsData.xls",sheet = "Ranked Measure Data")
+x2017_socio <- read_excel("2017CountyHealthRankingsData.xls",sheet = "Additional Measure Data")
+x2018_mhp <- read_excel("2018 County Health Rankings Data - v2.xls",sheet = "Ranked Measure Data" )
+x2018_socio <- read_excel("2018 County Health Rankings Data - v2.xls",sheet = "Additional Measure Data" )
+x2019_mhp <- read_excel("2019 County Health Rankings Data - v3.xls",sheet = "Ranked Measure Data")
+x2019_socio <- read_excel("2019 County Health Rankings Data - v3.xls",sheet = "Additional Measure Data")
+partisanship <- read_csv("countypres_2000-2020.csv")
+
+#clean
+# For the socio data cleaning
+x2016_socio <- x2016_socio %>% 
+  rename(`Other primary care providers` = `Other primary care providers^`)
+# Select relevant columns for socio data
+x2016_socio <- x2016_socio %>% 
+  dplyr::select(...1, ...2, ...3, `Frequent mental distress`, ...32, ...42, 
+         `Other primary care providers`, `Median household income`, Homicides, 
+         ...77, ...82, ...84, Demographics)
+# Change row 1 to header and remove row 1
+names(x2016_socio) <- as.character(unlist(x2016_socio[1, ])) 
+x2016_socio <- x2016_socio[-1, ]
+
+#repeat for other years
+#2017
+x2017_socio <- x2017_socio %>%
+  dplyr::select(...1, ...2, ...3, `Frequent mental distress`, ...32, ...41, ...79,
+         `Other primary care providers`, `Median household income`, Homicides, 
+        ...84, ...86, Demographics)
+# Change row 1 to header and remove row 1
+names(x2017_socio) <- as.character(unlist(x2017_socio[1, ])) 
+x2017_socio <- x2017_socio[-1, ]
+
+#2018
+x2018_socio <- x2018_socio %>%
+  dplyr::select(...1, ...2, ...3, `Frequent mental distress`, ...41, ...51,
+         `Other primary care providers`, `Median household income`, Homicides,
+         ...92, ...97, ...99, Demographics)
+# Change row 1 to header and remove row 1
+names(x2018_socio) <- as.character(unlist(x2018_socio[1, ])) 
+x2018_socio <- x2018_socio[-1, ]
+#2019
+x2019_socio <- x2019_socio %>%
+  dplyr::select(...1, ...2, ...3, `Frequent mental distress`, ...47, ...56,
+         `Other primary care providers`, `Median household income`, Homicides,
+         ...104,...109, ...111, Demographics)
+# Change row 1 to header and remove row 1
+names(x2019_socio) <- as.character(unlist(x2019_socio[1, ]))
+x2019_socio <- x2019_socio[-1, ]
+
+
+# Adding year column
+x2016_socio$year <- 2016
+x2017_socio$year <- 2017
+x2018_socio$year <- 2018
+x2019_socio$year <- 2019
+
+socio_data_final <- bind_rows(
+  x2016_socio,
+  x2017_socio,
+  x2018_socio,
+  x2019_socio
+)
+
+# For mhp data cleaning
+names(x2016_mhp) <- as.character(unlist(x2016_mhp[1, ]))
+x2016_mhp <- x2016_mhp[-1, ]
+names(x2017_mhp) <- as.character(unlist(x2017_mhp[1, ]))
+x2017_mhp <- x2017_mhp[-1, ]
+names(x2018_mhp) <- as.character(unlist(x2018_mhp[1, ]))
+x2018_mhp <- x2018_mhp[-1, ]
+names(x2019_mhp) <- as.character(unlist(x2019_mhp[1, ]))
+x2019_mhp <- x2019_mhp[-1, ]
+
+# Define the common variables
+common_vars <- c("FIPS", "State", "County", "% Smokers", "% Excessive Drinking", 
+                  "PCP Rate", "Dentist Rate", "MHP Rate", 
+                 "Graduation Rate", "% Unemployed", "Income Ratio", 
+                 "Violent Crime Rate", "% Severe Housing Problems")
+
+# List of datasets
+mhp_data_list <- list(x2016_mhp = x2016_mhp, x2017_mhp = x2017_mhp, 
+                      x2018_mhp = x2018_mhp, x2019_mhp = x2019_mhp)
+
+# Loop through each dataset to select common variables
+for (year_data in names(mhp_data_list)) {
+  mhp_data_list[[year_data]] <- mhp_data_list[[year_data]] %>%
+    dplyr::select(all_of(common_vars))
+}
+mhp_data_final <- bind_rows(
+  mutate(mhp_data_list$x2016_mhp, year = 2016),
+  mutate(mhp_data_list$x2017_mhp, year = 2017),
+  mutate(mhp_data_list$x2018_mhp, year = 2018),
+  mutate(mhp_data_list$x2019_mhp, year = 2019)
+)
+
+final <- socio_data_final%>%
+  left_join(mhp_data_final, by = c("FIPS", "State", "County", "year"))
+# Replace spaces in column names with underscores
+colnames(final) <- gsub(" ", "_", colnames(final))
+```
+
+
+```{r}
+final <- final %>%
+  mutate(across(setdiff(names(final), c("FIPS", "County", "State")), as.numeric))
+skim(final)
+#desciptive statistics before scaling 
+numeric_val <- final %>% 
+  dplyr::select(-c(FIPS, County, State, year))
+desc <- describe(numeric_val)
+desc <- as.data.frame(desc)
+desc_summary <- desc%>%
+  dplyr::select(n, mean, median, max, min, sd, skew, range)
+desc_summary
+
+# Create the table with kableExtra for formatting
+desc_summary %>%
+  kable("html", caption = "Descriptive Statistics Summary") %>%
+  kable_styling(bootstrap_options = c("striped", "hover"), 
+                full_width = FALSE, 
+                position = "center") %>%
+  column_spec(1, width = "3cm") %>%
+  column_spec(2:ncol(desc_summary), width = "2cm")
+
+# plot for missing data
+gg_miss_var(final) + 
+  theme_minimal() + 
+  labs(title = "Plot of Missing Values", 
+       x = "Variables", 
+       y = "Number of Missing Observations")
+
+#Checking for pattern in NA values
+# Select only numeric columns
+numeric_data <- final %>% dplyr::select(where(is.numeric))
+
+has_na <- sapply(numeric_data, function(x) any(is.na(x)))
+TestMCARNormality(numeric_data[has_na]) 
+
+# since MCAR is rejected, we now use appropriate imputation for missing values
+
+#since Homicide rate has over 80% missing values, it will be removed from analysis
+final <- final%>%
+  dplyr::select(-c(Homicide_Rate))
+
+#first, remove obs with more than three missing variables
+final_na <- final%>%
+  filter(rowSums(is.na(.)) <= 3)
+  
+#subsetting all values expect dependent variable, drug mortality rate
+IV_final <- final_na%>%
+  dplyr::select(-c(Drug_Overdose_Mortality_Rate, year))
+
+#before we impute, standardize the variables
+numeric_vars <- IV_final %>% select_if(is.numeric)
+standardized_vars <- scale(numeric_vars)
+final_standardized <- cbind(IV_final %>% dplyr::select(c(FIPS, State, County)), standardized_vars)
+
+final_standardized <- as.data.frame(final_standardized)
+
+#transforming highly skewed variables
+skewed_vars <- c("Population", "Other_PCP_Rate", "Dentist_Rate", "MHP_Rate", 
+                 "Violent_Crime_Rate")
+
+final_standardized_vars <- final_standardized %>%
+  mutate(across(all_of(skewed_vars), log1p)) %>%
+  mutate(across(all_of(skewed_vars), ~ scale(.)))
+final_standardized_vars <- as.data.frame(final_standardized_vars)
+
+#converting vars that are arrays into numeric
+final_standardized_vars[] <- lapply(final_standardized_vars, function(x) {
+  if (is.array(x)) {
+    return(as.numeric(x)) 
+  }
+  return(x) 
+})
+
+#impute missing IVs
+imputed_IVs <- mice(final_standardized_vars, m = 5, method = 'pmm', seed = 500)
+complete_data <- complete(imputed_IVs)
+
+# used predictive mean matching non-parametric nature as it is more suitable 
+#for handling complex relationships and county-level variations within the data
+#it also doesn't rely on distributional assumptions
+
+# Add back the original dependent variable for imputation
+complete_data_dv <- complete_data %>% 
+  mutate(Drug_Overdose_Mortality_Rate = final_na$Drug_Overdose_Mortality_Rate)%>%
+  mutate(`year` = final_na$year)
+# Impute missing values in the dependent variable using the other imputed columns
+final_imputed_all <- kNN(complete_data_dv, 
+                     variable = "Drug_Overdose_Mortality_Rate", 
+                     k = 5, imp_var = FALSE)
+skim(final_imputed_all)
+write.csv(final_imputed_all,"final_imputed_all.csv")
+
+hist(final_imputed_all$Drug_Overdose_Mortality_Rate)
+hist(final$Drug_Overdose_Mortality_Rate)
+```
+
+```{r}
+#descriptive stats
+numeric_val <- final %>% 
+  dplyr::select(-c(FIPS, County, State, year))
+desc <- describe(numeric_val)
+desc <- as.data.frame(desc)
+desc_summary <- desc%>%
+  dplyr::select(n, mean, median, max, min, sd, skew, range)
+desc_summary
+
+### visualizations ADD MORE EDA
+#scatterplot matrix
+pairs(numeric_val, main = "Scatter Plot Matrix", lower.panel = NULL)
+# look at correlation and plot a heat map
+par(mar = c(8, 4, 4, 2))
+cor_matrix <- cor(numeric_val, use = "complete.obs")
+heatmap(cor_matrix)
+
+```
+
+```{r}
+# Threshold to Create Target Variable
+threshold <- quantile(final_imputed_all$Drug_Overdose_Mortality_Rate, 0.75, na.rm = TRUE)
+final_imputed_all$high_risk <- ifelse(final_imputed_all$Drug_Overdose_Mortality_Rate > threshold, 1, 0)
+
+# Remove Unnecessary Columns
+vars <- final_imputed_all %>%
+  dplyr::select(-c(FIPS, State, Drug_Overdose_Mortality_Rate, County))
+
+# baseline logit model
+logit <- glm(high_risk ~ ., data = vars, family = binomial(), na.action = na.omit) 
+
+summary(logit)
+
+#check assumptions
+# Extract model residuals and predictors
+fitted_values <- fitted(logit)
+partial_residuals <- residuals(logit, type = "response")
+predictors <- colnames(vars)[!colnames(vars) %in% "high_risk"]
+
+for (predictor in predictors) {
+  if (is.numeric(vars[[predictor]])) {
+    # Prepare data for plotting
+    plot_data <- data.frame(
+      Predictor = vars[[predictor]],
+      Residuals = partial_residuals
+    )
+    
+    # Create the ggplot object
+    plot <- ggplot(plot_data, aes(x = Predictor, y = Residuals)) +
+      geom_point(alpha = 0.5) +
+      geom_smooth(method = "loess", color = "blue", se = TRUE) +
+      labs(
+        title = paste("Smoothed Residual Plot for", predictor),
+        x = predictor,
+        y = "Partial Residuals"
+      ) +
+      theme_minimal() +
+      theme(plot.title = element_text(hjust = 0.5))
+    
+    # Print the plot
+    print(plot)
+  }
+}
+
+# does not have pass 
+
+# Residuals plot for checking linearity assumption
+plot(fitted(logit_model), residuals(logit_model, type = "deviance"))
+
+# multicollinearity
+vif(logit_model)
+
+
+# Train-Test Split
+set.seed(123)
+random_sample <- createDataPartition(final_imputed_all$high_risk, p = 0.8, list = FALSE)
+training_dataset <- final_imputed_all[random_sample, ]
+testing_dataset <- final_imputed_all[-random_sample, ]
+
+# Upsample the Training Data
+set.seed(123)
+upsampled_data <- upSample(
+  x = training_dataset %>% dplyr::select(-high_risk),
+  y = factor(training_dataset$high_risk)
+)
+upsampled_data <- upsampled_data %>% rename(high_risk = Class)
+```
+
+```{r}
+
+##Feature Selection
+#lasso regression
+
+upsampled_data <- upsampled_data %>%
+  dplyr::select(-c(FIPS, County, State, Drug_Overdose_Mortality_Rate))
+
+x <- model.matrix(high_risk ~ ., data = upsampled_data)[, -1]
+# Prepare the response variable (high_risk as a binary variable)
+y <- upsampled_data$high_risk
+
+# perform 5-fold cross validation for LASSO
+set.seed(123)
+lasso_cv <- cv.glmnet(x, y, alpha = 1, family = "binomial", nfolds = 5)
+plot(lasso_cv)
+
+# Find the optimal lambda value (lambda.min)
+optimal_lambda <- lasso_cv$lambda.min
+
+# Coefficients at the optimal lambda
+best_coefficients <- coef(lasso_cv, s = "lambda.min")
+
+coeff_df <- as.data.frame(as.matrix(best_coefficients))
+coeff_df$Variable <- rownames(coeff_df)
+colnames(coeff_df) <- c("Coefficient", "Variable")
+coeff_df <- coeff_df[coeff_df$Coefficient != 0, ]
+coeff_df <- coeff_df[coeff_df$Coefficient != 0 & coeff_df$Variable != "(Intercept)", ]
+coeff_df$Sign <- ifelse(coeff_df$Coefficient > 0, "Positive", "Negative")
+
+ggplot(coeff_df, aes(x = reorder(Variable, Coefficient), y = Coefficient, fill = Sign)) + 
+  geom_point(shape = 21, size = 4) +  # Use a shape that supports fill
+  coord_flip() + 
+  scale_fill_manual(values = c("Positive" = "forestgreen", "Negative" = "firebrick")) + 
+  labs(title = "LASSO Coefficients", x = "Variables", y = "Coefficient") + 
+  theme_minimal()
+#based on the LASSO output, remove variables that have been reduced to very small coefficients to simply the model
+
+# Remove the selected variables close to zero and fit the Lasso model again
+model_vars <- upsampled_data %>% dplyr::select(-Violent_Crime_Rate, 
+                                               -Dentist_Rate, 
+                                               -`%_Smokers`,
+                                               -Other_PCP_Rate)
+
+
+#lasso_model_updated <- glm(high_risk ~ ., data = model_vars, family = binomial(), na.action = na.omit)
+#summary(lasso_model_updated)
+
+#overfitting the model, model seems to perform worse using testing data
+```
+
+```{r}
+#  Train Logistic Regression Model Using Updated (Feature-Selected) Data
+# Logistic Regression Model
+logit_model <- glm(high_risk ~ ., data = model_vars, family = binomial(), na.action = na.omit)
+summary(logit_model)
+stargazer(logit_model, type = "latex", title = "Logistic Regression Model",
+          dep.var.labels = "High Risk of Drug Overdose Mortality Rate",
+          omit.stat = c("f", "ser"), 
+          no.space = TRUE)
+
+# Evaluate Multicollinearity
+vif_values <- vif(logit_model)
+vif_table <- as.data.frame(vif_values)
+colnames(vif_table) <- c("Variable", "VIF")
+vif_table %>%
+  kable("html", caption = "Variance Inflation Factor (VIF) Table") %>%
+  kable_styling(bootstrap_options = c("striped", "hover", "condensed"), full_width = F)
+
+#  Prepare the training and testing datasets
+x_train <- as.matrix(upsampled_data %>% dplyr::select(-high_risk))
+y_train <- as.factor(upsampled_data$high_risk)
+
+x_test <- as.matrix(testing_dataset %>% dplyr::select(-high_risk))
+y_test <- as.numeric(testing_dataset$high_risk)
+
+y_test <- factor(y_test, levels = c(0, 1))
+# Make binary predictions for training and testing data with threshold 0.5
+pred_train_binary <- ifelse(pred_probs_train > 0.5, 1, 0)
+pred_test_binary <- ifelse(pred_probs_test > 0.5, 1, 0)
+
+conf_matrix_train <- confusionMatrix(factor(pred_train_binary), upsampled_data$high_risk)
+conf_matrix_test <- confusionMatrix(factor(pred_test_binary), factor(testing_dataset$high_risk))
+
+#  AUC-ROC for Logistic Regression Model
+# Get predicted probabilities for training and testing sets
+pred_probs_train <- predict(logit_model, newdata = upsampled_data, type = "response")
+pred_probs_test <- predict(logit_model, newdata = testing_dataset, type = "response")
+
+# Compute ROC for both training and testing sets
+roc_trainlgt <- roc(upsampled_data$high_risk, pred_probs_train)
+roc_testlgt <- roc(testing_dataset$high_risk, pred_probs_test)
+
+# Plot ROC curve for training set
+plot(roc_trainlgt, main = "ROC Curve for Logistic Regression Model (Train)", col = "blue")
+
+# Plot ROC curve for testing set
+plot(roc_testlgt, main = "ROC Curve for Logistic Regression Model (Test)", col = "red")
+
+#AUC of 0.7192 indicates that the model has moderate predictive ability on the training set
+#The model appears to have fair generalization, which means it's likely not overfitting (as the training and test AUCs are relatively close) and can discriminate reasonably well between high-risk and low-risk individuals.
+```
+
+```{r}
+mtry_grid <- expand.grid(
+  mtry = c(3, 5, 7)
+)
+# Define cross-validation control with 5 folds
+cv_control <- trainControl(
+  method = "cv",
+  number = 5
+)
+
+# Perform grid search with random forest, adjusting mtry
+set.seed(123)
+rf_tuned <- train(
+  x = x_train,
+  y = as.factor(y_train),
+  method = "rf",
+  tuneGrid = mtry_grid,
+  trControl = cv_control,
+  metric = "Accuracy",
+  do.trace = TRUE,
+  ntree = 100  
+)
+
+# Extract the best mtry value
+best_mtry <- rf_tuned$bestTune$mtry
+# 3 is the best tuning mtry, suggesting that three variables are considered at each node forcing the trees to be less correlated with each other, which can increase generalization and prevent overfitting
+#With lower values of mtry, the model may have slightly higher bias (because it is considering fewer features at each split), but this is compensated by a reduction in variance 
+
+# Train Random Forest using the optimal mtry
+set.seed(123)
+rf_model <- randomForest(
+  x = x_train,
+  y = y_train,
+  ntree = 250,        
+  mtry = best_mtry,   
+  importance = TRUE
+)
+
+# Evaluate and visualize
+train_preds_rf <- predict(rf_model, x_train)
+cm_train_rf <- confusionMatrix(train_preds_rf, y_train)
+
+test_preds_rf <- predict(rf_model, x_test)
+cm_test_rf <- confusionMatrix(factor(test_preds_rf), factor(y_test))
+
+plot(rf_model)
+importance(rf_model)
+varImpPlot(rf_model)
+
+# Get predicted probabilities for training and testing sets
+pred_probs_trainrf <- predict(rf_model, newdata = upsampled_data, type = "prob")[,2]
+pred_probs_testrf <- predict(rf_model, newdata = testing_dataset, type = "prob")[,2]
+
+# Compute ROC for both training and testing sets
+roc_train <- roc(upsampled_data$high_risk, pred_probs_trainrf)
+roc_test <- roc(testing_dataset$high_risk, pred_probs_testrf)
+```
+
+
+
+```{r}
+# Extracting relevant metrics from confusion matrices
+metrics_logit_train <- c(
+  Accuracy = conf_matrix_train$overall["Accuracy"],
+  Sensitivity = conf_matrix_train$byClass["Sensitivity"],
+  Specificity = conf_matrix_train$byClass["Specificity"],
+  Precision = conf_matrix_train$byClass["Pos Pred Value"],
+  NPV = conf_matrix_train$byClass["Neg Pred Value"],
+  F1_Score = conf_matrix_train$byClass["F1"]
+)
+
+metrics_logit_test <- c(
+  Accuracy = conf_matrix_test$overall["Accuracy"],
+  Sensitivity = conf_matrix_test$byClass["Sensitivity"],
+  Specificity = conf_matrix_test$byClass["Specificity"],
+  Precision = conf_matrix_test$byClass["Pos Pred Value"],
+  NPV = conf_matrix_test$byClass["Neg Pred Value"],
+  F1_Score = conf_matrix_test$byClass["F1"]
+)
+
+metrics_rf_train <- c(
+  Accuracy = cm_train_rf$overall["Accuracy"],
+  Sensitivity = cm_train_rf$byClass["Sensitivity"],
+  Specificity = cm_train_rf$byClass["Specificity"],
+  Precision = cm_train_rf$byClass["Pos Pred Value"],
+  NPV = cm_train_rf$byClass["Neg Pred Value"],
+  F1_Score = cm_train_rf$byClass["F1"]
+)
+
+metrics_rf_test <- c(
+  Accuracy = cm_test_rf$overall["Accuracy"],
+  Sensitivity = cm_test_rf$byClass["Sensitivity"],
+  Specificity = cm_test_rf$byClass["Specificity"],
+  Precision = cm_test_rf$byClass["Pos Pred Value"],
+  NPV = cm_test_rf$byClass["Neg Pred Value"],
+  F1_Score = cm_test_rf$byClass["F1"]
+)
+
+# Create a Data Frame for comparison
+metrics_df <- data.frame(
+  Model = c("Logistic Regression (Train)", "Logistic Regression (Test)", 
+            "Random Forest (Train)", "Random Forest (Test)"),
+  Accuracy = c(metrics_logit_train["Accuracy.Accuracy"], metrics_logit_test["Accuracy.Accuracy"], 
+               metrics_rf_train["Accuracy.Accuracy"], metrics_rf_test["Accuracy.Accuracy"]),
+  Sensitivity = c(metrics_logit_train["Sensitivity.Sensitivity"], metrics_logit_test["Sensitivity.Sensitivity"], 
+                  metrics_rf_train["Sensitivity.Sensitivity"], metrics_rf_test["Sensitivity.Sensitivity"]),
+  Specificity = c(metrics_logit_train["Specificity.Specificity"], metrics_logit_test["Specificity.Specificity"], 
+                  metrics_rf_train["Specificity.Specificity"], metrics_rf_test["Specificity.Specificity"]),
+  Precision = c(metrics_logit_train["Precision.Pos Pred Value"], metrics_logit_test["Precision.Pos Pred Value"], 
+                metrics_rf_train["Precision.Pos Pred Value"], metrics_rf_test["Precision.Pos Pred Value"]),
+  NPV = c(metrics_logit_train["NPV.Neg Pred Value"], metrics_logit_test["NPV.Neg Pred Value"], 
+          metrics_rf_train["NPV.Neg Pred Value"], metrics_rf_test["NPV.Neg Pred Value"]),
+  F1_Score = c(metrics_logit_train["F1_Score.F1"], metrics_logit_test["F1_Score.F1"], 
+               metrics_rf_train["F1_Score.F1"], metrics_rf_test["F1_Score.F1"])
+)
+
+#Since the goal is to identify high-risk counties (True Positives), sensitivity is the primary focus. Random Forest (Test) outperforms Logistic Regression (Test) in Sensitivity (94.3% vs. 67.6%) and maintains high Precision (85.7%).Thus, Random Forest is the better model for the objective of the project.
+```
+
+```{r}
+#tableau visualizations
+pred_class_rf <- predict(rf_model, newdata = testing_dataset, type = "response")
+testing_dataset$Predicted_Probability <- pred_probs_testrf 
+testing_dataset$Predicted_Class <- pred_class_rf
+
+
+pred_probs_test_logit <-predict(logit_model, newdata = testing_dataset, type = "response")
+testing_dataset$Predicted_Class_logit <- 
+colnames(testing_dataset)
+write.csv(testing_dataset, "testing_dataset.csv")
+
+
+```
