@@ -201,7 +201,7 @@ final <- final%>%
 final_na <- final%>%
   filter(rowSums(is.na(.)) <= 3)
   
-#subsetting all values expect dependent variable, drug mortality rate
+#subsetting all values except dependent variable, drug mortality rate
 IV_final <- final_na%>%
   dplyr::select(-c(Drug_Overdose_Mortality_Rate, year))
 
