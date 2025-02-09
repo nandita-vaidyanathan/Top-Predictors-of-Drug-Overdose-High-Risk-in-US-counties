@@ -1,9 +1,10 @@
 ---
-title: "FINAL SPE PROJECT"
+title: "Identifying top predictors of Drug Overdose Mortality US Counties"
 author: "Nandita"
 date: "2024-11-30"
 output: html_document
 ---
+This study employs machine learning methods to identify county-level predictors of drug overdose mortality risk in the United States. Using probit regression, LASSO, random forest, and XGBoost models, we analyze the relationship between county characteristics and overdose mortality, focusing on health-related and healthcare access, community safety, and sociodemographic factors in the years 2016- 2019. 
 
 ```{r setup, include=FALSE}
 knitr::opts_chunk$set(echo = TRUE)
@@ -154,6 +155,7 @@ final <- socio_data_final%>%
 colnames(final) <- gsub(" ", "_", colnames(final))
 ```
 
+After loading, cleaning, and merging the demographic, socioeconomic and community safety variables, the final dataset comprises 12,563 observations across 1,856 counties and 23 variables over the four-year period.
 
 ```{r}
 final <- final %>%
