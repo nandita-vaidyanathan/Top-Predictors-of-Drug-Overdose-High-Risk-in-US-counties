@@ -4,6 +4,8 @@ author: "Nandita"
 date: "2024-11-30"
 output: html_document
 ---
+Note: PDF files in this repository need to be downloaded to be viewed properly. The "Invalid PDF" message is just a GitHub display limitation.
+
 This study employs machine learning methods to identify county-level predictors of drug overdose mortality risk in the United States. Using probit regression, LASSO, random forest, and XGBoost models, we analyze the relationship between county characteristics and overdose mortality, focusing on health-related and healthcare access, community safety, and sociodemographic factors in the years 2016- 2019. 
 
 ```{r setup, include=FALSE}
