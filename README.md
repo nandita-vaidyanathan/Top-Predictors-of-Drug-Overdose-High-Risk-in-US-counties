@@ -49,7 +49,7 @@ machine learning approaches to identify county-level characteristics associated 
 United States. We combine traditional statistical methods probit and LASSO with ensemble learning techniques Random Forest and 
 XGBoost to analyze a comprehensive set of county characteristics from 2016-2019.
 
-#Methodology
+# Methodology
 This study analyzes county-level data (2016-2019) from the County Health Rankings & Roadmaps program to identify predictors of drug overdose mortality in the United States. The dataset consolidates information across three main categories: health-related factors (mental distress, uninsured rates, provider density, smoking, drinking), community safety (violent crime rates), and socioeconomic vulnerability (demographics, income, unemployment, education, housing). The final dataset comprises 12,563 observations across 1,856 counties and 23 variables over the four-year period. Counties in the 75th percentile of drug overdose mortality rates, derived from CDC Wonder data, were classified as high-risk.
 
 ## Missing Data Strategy
